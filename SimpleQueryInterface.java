@@ -1,0 +1,5 @@
+
+public abstract interface SimpleQueryInterface
+{
+	
+}

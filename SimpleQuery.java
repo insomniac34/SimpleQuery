@@ -9,7 +9,6 @@
             ./simplequery -q <"SQL Statement"> -> outputs the result of a custom SQL statement (NOTICE THE QUOTES!)
             ./simplequery -assert -> display only rows with failures
             ./simplequery -f <filename.txt> -> dump output to file 
-            ./simplequery -df <datafeed> -> print table data for specific datafeed
             ./simplequery -r <# of rows> ->  specify number of rows to output (default is 15, -1 is unlimited)
             ./simplequery -db <database name> -> override default database name
             ./simplequery -hn <host name> -> override default hostname
@@ -543,7 +542,6 @@ public class SimpleQuery
                            + "     ./simplequery -q <\"SQL Statement\"> -> outputs the result of a custom SQL statement (NOTICE THE QUOTES!) \n"
                            + "     ./simplequery -assert -> prints only failures \n"
                            + "     ./simplequery -f <filename.txt> -> dump output to file \n"
-                           + "     ./simplequery -df <datafeed> -> print table data for specific datafeed \n"
                            + "     ./simplequery -r <# of rows> ->  specify number of rows to output (default is 15) \n"
                            + "     ./simplequery -sd -> set default username/password/dbname/ \n"
                            + "     ./simplequery -cleardata -> clear stored credentials\n"     
@@ -554,7 +552,6 @@ public class SimpleQuery
 
     private static void versionInfo()
     {
-        System.out.println("SimpleQuery BETA v0.2");
         System.out.println("Written by Tyler Raborn");
     }
 
@@ -576,7 +573,6 @@ public class SimpleQuery
         try
         {
             String connectionString = "jdbc:oracle:thin:"+username+"/"+password+"@//" + hostName + ":" + Integer.toString(hostPort) + "/" + dbName;
-            System.out.println("Credentials: " + username + ", " + password + ", ConString: " + connectionString);
             Connection con = DriverManager.getConnection(
                                                          connectionString,
                                                          username,

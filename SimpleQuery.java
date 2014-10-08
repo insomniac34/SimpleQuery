@@ -9,10 +9,12 @@
             ./simplequery -q <"SQL Statement"> -> outputs the result of a custom SQL statement (NOTICE THE QUOTES!)
             ./simplequery -assert -> display only rows with failures
             ./simplequery -f <filename.txt> -> dump output to file 
+            ./simplequery -df <datafeed> -> print table data for specific datafeed
             ./simplequery -r <# of rows> ->  specify number of rows to output (default is 15, -1 is unlimited)
             ./simplequery -db <database name> -> override default database name
             ./simplequery -hn <host name> -> override default hostname
             ./simplequery -hp <host port #> -> override default host port #
+            ./simplequery -exec <filename.txt> -> execute queries in given file
 
             The following must be run individually.
             ./simplequery -sd -> set default username/password
@@ -38,6 +40,8 @@ public class SimpleQuery
     final static String credentialFileName = "SQ_logondata.txt";
     final static String databaseInfoFileName = "SQ_dbdata.txt";
 
+    private static ArrayList<String> queryList;
+
     static int MAX_ROWS;
     static String datafeed = null;
     //static String hostName = new String("edidluslvd01"); 
@@ -46,16 +50,22 @@ public class SimpleQuery
     static int hostPort = 1521;
     //static String dbName = new String("SVDEV");
     static String dbName = new String("dbclass.cs.pitt.edu");
-    static String queryTestResults; 
+    static String queryString; 
 
     static boolean isCustomQuery = false;
     static boolean isAssertion = false;
     static boolean outputToFile = false;
+    static boolean readFromFile = false;
 
+    static File inputFile;
     static File outputFile;
     static File userInfoFile;
     static File databaseInfoFile;
     static BufferedWriter fileWriter;
+    static BufferedReader fileReader;
+
+    static ArrayDeque<Query> queryObjectList;
+    static ArrayDeque<Query> queryResultList;
 
     public static void main(String[] args)
     {
@@ -71,6 +81,8 @@ public class SimpleQuery
         userInfoFile = new File(credentialFileName);
         databaseInfoFile = new File(databaseInfoFileName);
 
+        System.out.println("\n**SimpleQuery 0.3**\n");
+
         //process dynamic arguments
         if (argList.contains("-q"))
         {
@@ -78,8 +90,8 @@ public class SimpleQuery
             index++;
 
             isCustomQuery = true;
-            queryTestResults = args[index];
-            System.out.println("statement is " + queryTestResults);
+            queryString = args[index];
+            System.out.println("statement is " + queryString);
             validArgsCount+=2;
         }
 
@@ -94,7 +106,7 @@ public class SimpleQuery
             {
                 fileWriter = new BufferedWriter(new FileWriter(outputFile));
 
-                if (outputFile.exists() == false)
+                if (!outputFile.exists())
                 {
                     outputFile.createNewFile();
                 }           
@@ -109,6 +121,40 @@ public class SimpleQuery
             }
 
             outputToFile = true; 
+            validArgsCount+=2;
+        }
+
+        if (argList.contains("-exec")) 
+        {
+            int index = argList.indexOf("-exec");
+            index++;
+
+            inputFile = new File(args[index]);
+            queryList = new ArrayList<String>();
+            queryObjectList = new ArrayDeque<Query>();
+
+            try 
+            {
+                fileReader = new BufferedReader(new FileReader(inputFile));
+                //load queries into queryList:
+                String buff = null;
+                while ((buff = fileReader.readLine()) != null) {
+                    System.out.println("Adding line to list of queries: " + buff);
+                    queryList.add(buff);
+                }
+            }
+            catch (FileNotFoundException e) 
+            {
+                e.printStackTrace();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            Query theQuery = new Query(queryList); //read in list of queries
+            queryObjectList.push(theQuery); //add query object to list of query objects containing lists of queries
+            
+            readFromFile = true;
             validArgsCount+=2;
         }
 
@@ -542,6 +588,7 @@ public class SimpleQuery
                            + "     ./simplequery -q <\"SQL Statement\"> -> outputs the result of a custom SQL statement (NOTICE THE QUOTES!) \n"
                            + "     ./simplequery -assert -> prints only failures \n"
                            + "     ./simplequery -f <filename.txt> -> dump output to file \n"
+                           + "     ./simplequery -df <datafeed> -> print table data for specific datafeed \n"
                            + "     ./simplequery -r <# of rows> ->  specify number of rows to output (default is 15) \n"
                            + "     ./simplequery -sd -> set default username/password/dbname/ \n"
                            + "     ./simplequery -cleardata -> clear stored credentials\n"     
@@ -552,6 +599,7 @@ public class SimpleQuery
 
     private static void versionInfo()
     {
+        System.out.println("SimpleQuery BETA v0.2");
         System.out.println("Written by Tyler Raborn");
     }
 
@@ -568,34 +616,51 @@ public class SimpleQuery
         }
     }
 
+    /* Queries db with a singular query */
     private static void queryDatabase(String username, String password) throws IOException 
     {
-        try
-        {
-            String connectionString = "jdbc:oracle:thin:"+username+"/"+password+"@//" + hostName + ":" + Integer.toString(hostPort) + "/" + dbName;
-            Connection con = DriverManager.getConnection(
-                                                         connectionString,
-                                                         username,
-                                                         password
-                                                        );
+        ArrayList<ArrayDeque<String>> resultsList = new ArrayList<ArrayDeque<String>>();
+        ConnectionData connectionData = new ConnectionData(hostPort, hostName, dbName, username, password);
+        if (readFromFile) {
+            for (Query query : queryObjectList) {
+                resultsList.add(query.execute(connectionData));
+            }
 
-            Statement queryStatement = con.createStatement();
-            ResultSet results = queryStatement.executeQuery(queryTestResults);
-
-            ResultSetMetaData theMetaData = results.getMetaData();
-            int columnsNumber = theMetaData.getColumnCount();
-            while (results.next()) {
-                for (int i = 1; i <= columnsNumber; i++) {
-                    if (i > 1) System.out.print(",  ");
-                    String columnValue = results.getString(i);
-                    System.out.print(columnValue + " " + theMetaData.getColumnName(i));
+            for (ArrayDeque<String> queryResults : resultsList) {
+                //System.out.println("\nResults of query: ");
+                for (String line : queryResults) {
+                    writeLine(line);
                 }
-                System.out.println("");     
-            }           
+            }
         }
-        catch(java.sql.SQLException e)
-        {
-            e.printStackTrace();
+        else {
+            try {
+                String connectionString = "jdbc:oracle:thin:"+username+"/"+password+"@//" + hostName + ":" + Integer.toString(hostPort) + "/" + dbName;
+                System.out.println("Credentials: " + username + ", " + password + ", ConString: " + connectionString);
+                Connection con = DriverManager.getConnection(
+                                                             connectionString,
+                                                             username,
+                                                             password
+                                                            );
+
+                Statement queryStatement = con.createStatement();
+                ResultSet results = queryStatement.executeQuery(queryString);
+
+                ResultSetMetaData theMetaData = results.getMetaData();
+                int columnsNumber = theMetaData.getColumnCount();
+                while (results.next()) {
+                    for (int i = 1; i <= columnsNumber; i++) {
+                        if (i > 1) writeLine(",  ");
+                        String columnValue = results.getString(i);
+                        writeLine(columnValue + " " + theMetaData.getColumnName(i));
+                    }
+                    writeLine("\n");     
+                }           
+            }
+            catch(java.sql.SQLException e)
+            {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -614,7 +679,7 @@ public class SimpleQuery
         }   
         else
         {
-            System.out.println(msg);
+            System.out.print(msg);
         }
     }
 }

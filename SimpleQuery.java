@@ -616,7 +616,7 @@ public class SimpleQuery
         }
     }
 
-    /* Queries db with a singular query */
+    /* handles querying the database */
     private static void queryDatabase(String username, String password) throws IOException 
     {
         ArrayList<ArrayDeque<String>> resultsList = new ArrayList<ArrayDeque<String>>();
